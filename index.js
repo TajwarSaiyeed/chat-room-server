@@ -6,7 +6,7 @@ const cors = require("cors");
 const app = express();
 
 const route = require("./route");
-const { addUser } = require("./users");
+const { addUser, findUser, getRoomUsers, removeUser } = require("./users");
 
 app.use(
   cors({
@@ -25,17 +25,19 @@ const io = new Server(server, {
 });
 
 io.on("connection", (socket) => {
-  console.log("User connected");
-
   socket.on("join", ({ name, room }) => {
     socket.join(room);
 
-    const { user } = addUser({ name, room });
+    const { user, isExist } = addUser({ name, room });
+
+    const userMessages = isExist
+      ? `Welcome back, ${user.name}`
+      : `Welcome, ${user.name}`;
 
     socket.emit("message", {
       data: {
         user: { name: "Admin" },
-        message: `Welcome, ${user.name}`,
+        message: userMessages,
       },
     });
 
@@ -45,6 +47,42 @@ io.on("connection", (socket) => {
         message: `${user.name} has joined the chat`,
       },
     });
+
+    io.to(user.room).emit("room", {
+      data: {
+        room: user.room,
+        users: getRoomUsers(user.room),
+      },
+    });
+  });
+
+  socket.on("sendMessage", ({ message, params }) => {
+    const user = findUser(params);
+
+    if (user) {
+      io.to(user.room).emit("message", {
+        data: {
+          user,
+          message,
+        },
+      });
+    }
+  });
+
+  socket.on("leftRoom", ({ params }) => {
+    const user = removeUser(params);
+
+    if (user) {
+      const { room, name } = user;
+
+      io.to(room).emit("message", {
+        data: { user: { name: "Admin" }, message: `${name} has left` },
+      });
+
+      io.to(room).emit("room", {
+        data: { users: getRoomUsers(room) },
+      });
+    }
   });
 
   io.on("disconnect", () => {
