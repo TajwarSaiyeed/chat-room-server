@@ -25,6 +25,7 @@ const io = new Server(server, {
 });
 
 io.on("connection", (socket) => {
+  console.log("user connected");
   socket.on("join", ({ name, room }) => {
     socket.join(room);
 
@@ -67,6 +68,21 @@ io.on("connection", (socket) => {
         },
       });
     }
+  });
+
+  socket.on("notification", ({ data }) => {
+    const { name, room, email } = data;
+    socket.broadcast.emit("notification", {
+      data: {
+        name,
+        room,
+        email,
+      },
+    });
+  });
+
+  socket.on("dietSchedule", (data) => {
+    socket.broadcast.emit("dietSchedule", data);
   });
 
   socket.on("leftRoom", ({ params }) => {
